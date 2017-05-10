@@ -136,11 +136,14 @@ class Crawler:
         cur = self.conn.execute(
             "INSERT INTO link(fromid, toid) VALUES (%d, %d)" % (fromid, toid)
         )
+        # Get ID from the previously inserted link
         linkid = cur.lastrowid
         for word in words:
             if word in ignorewords:
                 continue
+            # Add word from link_text or retrieve existing word ID
             wordid = self.get_entry_id('wordlist', 'word', word)
+            # Insert word from link_text and it's link ID to linkwords table
             self.conn.execute(
                 "INSERT INTO linkwords(linkid, wordid) VALUES (%d, %d)" % (linkid, wordid)
             )
@@ -470,22 +473,30 @@ class Searcher:
 
     def link_text_score(self, rows, wordids):
         """
+        Returns score based on a matching word id's with words
+        in a link text. Score for page rises if parent page link text
+        have query word occurrences
         
         :param rows: list of tuples [(urlid, w0.location, ...), ...]
         :param wordids: word id's from query
         :return: dict of scores
         """
+        # Initialize dict {urlid: score}
         link_scores = dict([(row[0], 0) for row in rows])
         for wordid in wordids:
+            # Get all results from link table which contains specific word(link_text) in linkwords table
             cursor = self.conn.execute(
                 'SELECT link.fromid, link.toid FROM linkwords, link '
                 'WHERE wordid = %d AND linkwords.linkid = link.rowid' % wordid
             )
             for (fromid, toid) in cursor:
+                # Check if child page is in dict
                 if toid in link_scores:
+                    # Get parents pagerank score
                     pr = self.conn.execute(
                         'SELECT score FROM pagerank WHERE urlid = %d' % fromid
                     ).fetchone()[0]
+                    # Add parent's pagerank score to child score
                     link_scores[toid] += pr
         return self.normalize(link_scores)
 
