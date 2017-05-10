@@ -499,7 +499,7 @@ if __name__ == '__main__':
 
     # print e.get_match_rows('south slavic russia')
     print 'Top 10 results for: ', 'serbian city'
-    e.query('serbian war criminal')
+    e.query('serbian city')
 
     # crawler.calculate_pagerank()
     # cur = crawler.conn.execute('SELECT * FROM pagerank ORDER BY score DESC ')
