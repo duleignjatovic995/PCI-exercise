@@ -352,9 +352,10 @@ class Searcher:
         scores = self.get_scored_list(rows, word_ids)
         # Sort urls for query
         ranked_scores = sorted([(score, url) for (url, score) in scores.items()], reverse=True)  # reverse = 1 btb
-        # Print 10 most ranked results
-        for (score, urlid) in ranked_scores[0:10]:
-            print '%f\t%s' % (score, self.get_url_name(urlid))
+        # Print 10 most ranked results - btb
+        # for (score, urlid) in ranked_scores[0:10]:
+        #     print '%f\t%s' % (score, self.get_url_name(urlid))
+        return word_ids, [r[1] for r in ranked_scores[0:10]]
 
     def normalize(self, scores, small_is_better=False):
         """
@@ -504,6 +505,7 @@ class Searcher:
 
     def nn_score(self,rows, wordids):
         """
+        Returns score based on user clicks.
         
         :param rows: list of tuples [(urlid, w0.location, ...), ...]
         :param wordids: word id's from query
