@@ -1,5 +1,15 @@
-from math import tanh
+from math import tanh as sigmoid
 from pysqlite2 import dbapi2 as sqlite
+
+
+def d_tanh(y):
+    """
+    Calculates the derivative of tanh function.
+    
+    :param y: Hyperbolic tang function
+    :return: Derivative of tanh
+    """
+    return 1.0 - y * y
 
 
 class SearchNet:
@@ -80,7 +90,7 @@ class SearchNet:
         :param urls: 
         """
         if len(wordids) > 3:
-            return None # todo wtf
+            return None  # todo wtf
         # Check if we alredy created a node for this set of words
         create_key = '_'.join(sorted([str(wi) for wi in wordids]))
         cursor = self.conn.execute(
@@ -96,18 +106,165 @@ class SearchNet:
             hiddenid = cursor1.lastrowid
             # Put in default weights
             for wordid in wordids:
-                self.set_strength(wordid, hiddenid, 0, 1.0/len(wordids))
+                self.set_strength(wordid, hiddenid, 0, 1.0 / len(wordids))
 
             for urlid in urls:
                 self.set_strength(hiddenid, urlid, 1, 0.1)
             self.conn.commit()
 
+    def get_all_hidden_ids(self, wordids, urlids):
+        """
+        Finds all nodes from hidden layer relevant to a
+        specific query.
+        
+        :param wordids: word id's from query
+        :param urlids: 
+        :return: hidden nodes
+        """
+        l1 = {}
+        for wordid in wordids:
+            # Get all hidden nodes connected to a specific word
+            cursor = self.conn.execute(
+                'SELECT toid FROM wordhidden WHERE fromid = %d' % wordid
+            )
+            for row in cursor:
+                l1[row[0]] = 1
+        for urlid in urlids:
+            # Get all hidden nodes conected to specific urls
+            cursor = self.conn.execute(
+                'SELECT fromid FROM hiddenurl WHERE toid = %d' % urlid
+            )
+            for row in cursor:
+                l1[row[0]] = 1
+        return l1.keys()
+
+    def setup_network(self, wordids, urlids):
+        """
+        Setup neural net for specific query
+        
+        :param wordids: word id's from query
+        :param urlids: 
+        """
+        # Value list
+        self.wordids = wordids
+        self.hidden_ids = self.get_all_hidden_ids(wordids, urlids)
+        self.urlids = urlids
+
+        # Node outputs
+        self.ai = [1.0] * len(self.wordids)
+        self.ah = [1.0] * len(self.hidden_ids)
+        self.ao = [1.0] * len(self.urlids)
+
+        # Create weight matrix for specific query
+        self.wi = [
+            [
+                self.get_strength(wordid, hiddenid, 0) for hiddenid in self.hidden_ids
+            ] for wordid in self.wordids
+        ]
+
+        self.wo = [
+            [
+                self.get_strength(hiddenid, urlid, 1) for urlid in self.urlids
+            ] for hiddenid in self.hidden_ids
+        ]
+
+    def feedforward(self):
+        """
+        Feedforward trough neural net.
+        
+        :return: Output nodes values
+        """
+        # The only inputs are the query words
+        for i in range(len(self.wordids)):
+            self.ai[i] = 1.0
+        # Hidden activations
+        for j in range(len(self.hidden_ids)):
+            sum = 0.0
+            for i in range(len(self.wordids)):
+                sum += self.ai[i] * self.wi[i][j]
+            self.ah[j] = sigmoid(sum)
+
+        # Output activations
+        for k in range(len(self.urlids)):
+            sum = 0.0
+            for j in range(len(self.hidden_ids)):
+                sum += self.ah[j] * self.wo[j][k]
+            self.ao[k] = sigmoid(sum)
+        return self.ao[:]
+
+    def get_result(self, wordids, urlids):
+        """
+        Get result for a specific query based on a neural
+        net.
+        
+        :param wordids: word id's from query
+        :param urlids: 
+        :return: Output nodes values
+        """
+        self.setup_network(wordids, urlids)
+        return self.feedforward()
+
+    def backpropagate(self, targets, alpha=0.5):
+        """
+        Back propagate once trough neural net.
+        
+        :param targets: Desired output values
+        :param alpha: Learning rate (default=0.5)
+        """
+        # Calculate errors of output nodes
+        output_deltas = [0.0] * len(self.urlids)
+        for k in range(len(self.urlids)):
+            error = targets[k] - self.ao[k]
+            output_deltas[k] = d_tanh(self.ao[k]) * error
+
+        # Calculate errors for hidden layer
+        hidden_detltas = [0.0] * len(self.hidden_ids)
+        for j in range(len(self.hidden_ids)):
+            error = 0.0
+            for k in range(len(self.urlids)):
+                error += output_deltas[k] * self.wo[j][k]
+            hidden_detltas[j] = d_tanh(self.ah[j]) * error
+
+        # Update output weights
+        for j in range(len(self.hidden_ids)):
+            for k in range(len(self.urlids)):
+                change = output_deltas[k] * self.ah[j]
+                self.wo[j][k] += alpha * change
+
+        # Update input weights
+        for i in range(len(self.wordids)):
+            for j in range(len(self.hidden_ids)):
+                change = hidden_detltas[j] * self.ai[i]
+                self.wi[i][j] += alpha * change
+
+    def train_query(self, wordids, urlids, selectedurl):
+        # generate a hidden node if necessary
+        self.generate_hidden_node(wordids, urlids)
+
+        self.setup_network(wordids, urlids)
+        self.feedforward()
+        # Set desired values
+        targets = [0.0] * len(urlids)
+        targets[urlids.index(selectedurl)] = 1.0
+        error = self.backpropagate(targets)
+        self.update_db()
+
+    def update_db(self):
+        # Set them to database values
+        for i in range(len(self.wordids)):
+            for j in range(len(self.hidden_ids)):
+                self.set_strength(self.wordids[i], self.hidden_ids[j], 0, self.wi[i][j])
+        for j in range(len(self.hidden_ids)):
+            for k in range(len(self.urlids)):
+                self.set_strength(self.hidden_ids[j], self.urlids[k], 1, self.wo[j][k])
+        self.conn.commit()
+
 
 if __name__ == "__main__":
     mynet = SearchNet('nn.db')
     # mynet.make_tables()
-    # wWorld, wRiver, wBank = 101, 102, 103
-    # uWorldBank, uRiver, uEarth = 201, 202, 203
+    wWorld, wRiver, wBank = 101, 102, 103
+    uWorldBank, uRiver, uEarth = 201, 202, 203
     # mynet.generate_hidden_node([wWorld, wBank], [uWorldBank, uRiver, uEarth])
     #
     # for c in mynet.conn.execute('select * from wordhidden'):
@@ -115,3 +272,6 @@ if __name__ == "__main__":
     # print 'Shithole'
     # for c in mynet.conn.execute('select * from hiddenurl'):
     #     print c
+    # print mynet.get_result([wWorld, wBank], [uWorldBank, uRiver, uEarth])
+    # mynet.train_query([wWorld,wBank],[uWorldBank,uRiver,uEarth],uWorldBank)
+    # print mynet.get_result([wWorld,wBank],[uWorldBank,uRiver,uEarth])

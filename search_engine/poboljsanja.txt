@@ -1,0 +1,26 @@
+class crawler:
+-add_to_index/is_indexed - ako je strana indexirana updateuj reci>>>
+-add_to_index - poboljsaj for petlju leba ti odvratna je 11111111
+-separate_words - dodaj porterov stemer ili lematizaciju 11111111
+-is_indexed - MOOZDA moze to efikasnije>>>
+-crawl - generalno crawler ima dosta prostora za poboljsanja@@@
+-create_index_tables - mani se sqlite-a i brisi ovu fju@@@
+-pagerank - urllist realno moze jednom da se izvrsi 11111111
+
+class searcher:
+- normalize funkcija mere to bolje
+- score funkcije - alternativa velikim konstantama tipa maxint i te fore
+- get_score_list - super za paralelizaciju
+
+class searchnet:
+- generate_hidden_node zasto len()>3 koji kurac?!?!/
+- get_all_hidden_ids -> umesti dict moze set?
+- feedforward -> range(len(self.wordids)) sredjuj
+
+MAIN:
+-predlozi u knjizi
+-kurcenje paralelizacijom, erlang/go/cpp
+-klijent
+-sklanjanje idiotskih komentara btb oznaka
+-dodavanje drugih metrika
+-poboljsanje pretrage preko tagova

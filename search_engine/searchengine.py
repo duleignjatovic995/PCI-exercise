@@ -2,10 +2,12 @@ import re
 import urllib2
 from pysqlite2 import dbapi2 as sqlite
 from urlparse import urljoin
+import nn
 
 import bs4 as bs
 
 ignorewords = set(['the', 'of', 'to', 'and', 'a', 'in', 'is', 'it'])
+mynet = nn.SearchNet(nn.db)
 
 
 class Crawler:
@@ -500,6 +502,20 @@ class Searcher:
                     link_scores[toid] += pr
         return self.normalize(link_scores)
 
+    def nn_score(self,rows, wordids):
+        """
+        
+        :param rows: list of tuples [(urlid, w0.location, ...), ...]
+        :param wordids: word id's from query
+        :return: dict of scores
+        """
+        # Get unique URL IDs as an ordered list
+        urlids = [urlid for urlid in set([row[0] for row in rows])]
+        nn_result = mynet.get_result(wordids, urlids)
+        scores = dict([(urlids[i], nn_result[i]) for i in range(len(urlids))])
+        return self.normalize(scores)
+
+
 if __name__ == '__main__':
     crawler = Crawler('searchindex.db')
     e = Searcher('searchindex.db')
@@ -510,7 +526,7 @@ if __name__ == '__main__':
 
     # print e.get_match_rows('south slavic russia')
     print 'Top 10 results for: ', 'serbian city'
-    e.query('serbian city')
+    e.query('serbian war criminal')
 
     # crawler.calculate_pagerank()
     # cur = crawler.conn.execute('SELECT * FROM pagerank ORDER BY score DESC ')
