@@ -238,6 +238,13 @@ class SearchNet:
                 self.wi[i][j] += alpha * change
 
     def train_query(self, wordids, urlids, selectedurl):
+        """
+        Trains neural net based on user clicks and updates database.
+        
+        :param wordids: word id's from query
+        :param urlids: relevant url id's
+        :param selectedurl: selected url
+        """
         # generate a hidden node if necessary
         self.generate_hidden_node(wordids, urlids)
 
@@ -250,6 +257,9 @@ class SearchNet:
         self.update_db()
 
     def update_db(self):
+        """
+        Update newly calculated weights to database.
+        """
         # Set them to database values
         for i in range(len(self.wordids)):
             for j in range(len(self.hidden_ids)):
